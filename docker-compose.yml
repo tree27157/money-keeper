@@ -1,0 +1,15 @@
+services:
+  db:
+    image: docker.1ms.run/pgvector/pgvector:pg17
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: money
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次创建数据卷时自动建表；改了 schema 需 down -v 重建
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+
+volumes:
+  pgdata:
