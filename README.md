@@ -5,6 +5,10 @@
 
 **状态**：开发中（数据层已跑通：xlsx 解析 → 幂等入库 → 整单回滚；Agent 层未接入）
 
+**已验证**：真实微信账单 129 笔入库；同一文件重复导入 `inserted=0`；
+故意破坏一行 → `BAD_ROW` 且整单回滚（`bills` / `transactions` 均未新增）；
+`total_amount` 与账单头部「收入 − 支出 + 中性」三项之和一致。
+
 ## 设计文档
 
 - [`docs/schema.sql`](docs/schema.sql) — 数据模型（bills / transactions / merchant_category）
