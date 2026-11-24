@@ -26,6 +26,7 @@ from contextlib import closing
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
+from app.tools.db import connect
 
 import pandas as pd
 
@@ -391,7 +392,8 @@ def _to_rows(df: pd.DataFrame, platform: str) -> list[tuple]:   # 抛 BillImport
                 "BAD_ROW", line=int(line), raw=raw_text, reason="交易单号为空"
             )
 
-        rows.append((transaction_text, merchant_text, amount_value, occurred))
+        neutral = _norm_direction(direction) not in ("支出", "收入")
+        rows.append((transaction_text, merchant_text, amount_value, occurred, "转账" if neutral else None))
     return rows
 
 
@@ -399,26 +401,6 @@ def _to_rows(df: pd.DataFrame, platform: str) -> list[tuple]:   # 抛 BillImport
 # 数据库写入
 # ---------------------------------------------------------------------------
 
-def _load_driver():
-    try:
-        import psycopg  # type: ignore
-
-        return psycopg
-    except ImportError:
-        try:
-            import psycopg2  # type: ignore
-
-            return psycopg2
-        except ImportError as exc:
-            raise RuntimeError(
-                "缺少 PostgreSQL 驱动：请安装 psycopg 或 psycopg2"
-            ) from exc
-
-
-def _connect():
-    driver = _load_driver()
-    dsn = os.environ.get("DATABASE_URL", "")
-    return driver.connect(dsn)
 
 
 def _ensure_bill(conn, platform: str, period_date: date, file_name: str) -> tuple[int, bool]:
@@ -461,15 +443,14 @@ def _upsert(conn, bill_id: int, rows: list[tuple]) -> int:       # 返回 insert
     with conn.cursor() as cur:
         for start in range(0, len(rows), INSERT_CHUNK):
             chunk = rows[start:start + INSERT_CHUNK]
-            placeholders = ",".join(["(%s, %s, %s, %s, %s)"] * len(chunk))
+            placeholders = ",".join(["(%s, %s, %s, %s, %s, %s)"] * len(chunk))
             params: list = []
-            for transaction_id, merchant, amount, occurred_at in chunk:
-                params.extend((bill_id, transaction_id, merchant, amount, occurred_at))
-
+            for transaction_id, merchant, amount, occurred_at, category in chunk:
+                params.extend((bill_id, transaction_id, merchant, amount, occurred_at, category))
             # placeholders 只由常量模板拼成，所有数据走参数绑定
             cur.execute(
                 "INSERT INTO transactions "
-                "(bill_id, transaction_id, merchant, amount, occurred_at) "
+                "(bill_id, transaction_id, merchant, amount, occurred_at, category) "
                 f"VALUES {placeholders} "
                 "ON CONFLICT (bill_id, transaction_id) DO NOTHING",
                 params,
@@ -540,7 +521,7 @@ def import_bill(file_path: str, platform: str, period: str) -> dict:
         return _error_payload(exc)
 
     try:
-        with closing(_connect()) as conn:
+        with closing(connect()) as conn:
             with conn:                      # 成功才提交，异常回滚整单（约束 7）
                 bill_id, duplicate = _ensure_bill(
                     conn, platform, period_date, path.name
