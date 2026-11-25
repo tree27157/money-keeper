@@ -350,7 +350,7 @@ def _parse_amount(value, direction) -> Decimal:
     if direction_text == "收入":
         return abs(amount)
     # "/"、"不计收支"、空值：符号来源是「收/支」列，不是金额正负（口径表第 1、8 条）。
-    # 这类中性交易由后续 web_search 判分类，导入阶段保留文件原值，category 留 NULL。
+    # 这类中性交易由后续 classify_merchant 判分类，导入阶段保留文件原值，category 留 NULL。
     return amount
 
 
