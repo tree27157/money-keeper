@@ -9,6 +9,13 @@
 故意破坏一行 → `BAD_ROW` 且整单回滚（`bills` / `transactions` 均未新增）；
 `total_amount` 与账单头部「收入 − 支出 + 中性」三项之和一致。
 
+## 公网地址
+
+- 项目 A（AI 笔记问答）：https://ai.tree-studio.cn/docs
+- 本项目（钱管家）：https://agent.tree-studio.cn/docs
+
+数据均为本人真实微信账单（129 笔），接口只读聚合结果，不返回原始交易明细。
+
 ## 设计文档
 
 - [`docs/schema.sql`](docs/schema.sql) — 数据模型（bills / transactions / merchant_category）

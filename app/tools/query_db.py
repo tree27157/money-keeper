@@ -25,6 +25,7 @@ from contextlib import closing
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from app.tools.db import connect
+from datetime import date, timedelta
 
 
 class QueryError(Exception):
@@ -128,6 +129,34 @@ def _totals(conn, start, end, category, merchant) -> dict:
         "uncounted_sum": _as_decimal(uncounted_sum),
     }
 
+_COVERAGE_SQL = """
+    SELECT min(occurred_at)::date AS start,
+           max(occurred_at)::date AS end,
+           count(*) AS n
+    FROM transactions
+    WHERE occurred_at >= %s AND occurred_at < %s
+"""
+
+
+def _coverage(conn, start: date, end: date) -> dict:
+    """数据覆盖范围。不受 category/merchant 过滤影响，反映整月原始数据窗口。"""
+    with conn.cursor() as cur:
+        cur.execute(_COVERAGE_SQL, (start, end))
+        first, last, n = cur.fetchone()
+
+    month_days = (end - start).days
+    if n == 0 or first is None:
+        return {"start": None, "end": None, "days": 0,
+                "month_days": month_days, "complete": False}
+
+    last_day = end - timedelta(days=1)
+    return {
+        "start": first.isoformat(),
+        "end": last.isoformat(),
+        "days": (last - first).days + 1,
+        "month_days": month_days,
+        "complete": first == start and last == last_day,
+    }
 
 def _group_rows(conn, start, end, by, category, merchant) -> list[dict]:
     """ by ∈ {'category','merchant'}；按 abs(net) 降序；不含转账/理财 """
@@ -182,6 +211,7 @@ def query_db(month, category=None, merchant=None, group_by=None) -> dict:
         return _error_payload(exc)
 
     with closing(connect()) as conn:
+        coverage = _coverage(conn, start, end)
         totals = _totals(conn, start, end, category, merchant)
         rows = (
             _group_rows(conn, start, end, group_by, category, merchant)
@@ -200,6 +230,7 @@ def query_db(month, category=None, merchant=None, group_by=None) -> dict:
         "month": month,
         "count": totals["count"],
         "count_all": totals["count_all"],
+        "coverage": coverage,
         "income": _money(income),
         "expense": _money(expense),
         "net": _money(net),

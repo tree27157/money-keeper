@@ -1,0 +1,9 @@
+# 运行时依赖（从项目 import 反推；版本已按当前环境 / ai-partner 已验证环境钉死）
+fastapi==0.162.0
+uvicorn==0.54.0
+pydantic==2.14.4
+openai==3.59.0
+psycopg[binary]==3.3.9
+python-dotenv==1.2.4
+pandas==3.1.1
+openpyxl==3.1.5
